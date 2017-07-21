@@ -4,7 +4,7 @@
  questions:    
     - variable: PATH
       label: "Path to save config on host"
-      default: "/data/rancher-active-proxy"
+      default: "/data/rancher-openresty-proxy"
       type: string
     - variable: DEFAULT_HOST
       label: "Default Virtual Host to use"

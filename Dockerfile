@@ -1,15 +1,18 @@
-FROM nginx:alpine
-MAINTAINER Adrien M amaurel90@gmail.com
+FROM openresty/openresty:alpine
+MAINTAINER Matthew Mckenzie mmckenzie@vostronet.com
 
 ENV DEBUG=false RAP_DEBUG="info" 
 ARG VERSION_RANCHER_GEN="artifacts/master"
 
-RUN apk add --no-cache nano ca-certificates unzip wget certbot bash openssl
+RUN apk add --no-cache --virtual .run-deps \
+    nano ca-certificates unzip wget certbot bash openssl
+
+
 
 # Install Forego & Rancher-Gen-RAP
 ADD https://github.com/jwilder/forego/releases/download/v0.16.1/forego /usr/local/bin/forego
 
-RUN wget "https://gitlab.com/adi90x/rancher-gen-rap/builds/$VERSION_RANCHER_GEN/download?job=compile-go" -O /tmp/rancher-gen-rap.zip \
+RUN wget "https://gitlab.com/vostro/rancher-gen-rap/builds/$VERSION_RANCHER_GEN/download?job=compile-go" -O /tmp/rancher-gen-rap.zip \
 	&& unzip /tmp/rancher-gen-rap.zip -d /usr/local/bin \
 	&& chmod +x /usr/local/bin/rancher-gen \
 	&& chmod u+x /usr/local/bin/forego \
@@ -19,12 +22,20 @@ RUN wget "https://gitlab.com/adi90x/rancher-gen-rap/builds/$VERSION_RANCHER_GEN/
 COPY /app/ /app/
 WORKDIR /app/
 
+# fixing up patching openresty to act more like default nginx and creating default directories
+RUN ln -s /usr/local/openresty/nginx /etc/nginx && mkdir /etc/nginx/conf.d && rm /usr/local/openresty/nginx/conf/nginx.conf
+RUN mkdir -p /var/log/nginx/ /etc/nginx/certs /etc/nginx/vhost.d /etc/nginx/conf.d /usr/share/nginx/html /etc/letsencrypt \
+    && touch /var/log/nginx/access.log 
+COPY ./nginx.conf /usr/local/openresty/nginx/conf/
+
+
 # Seting up repertories & Configure Nginx and apply fix for very long server names
 RUN chmod +x /app/letsencrypt.sh \
     && mkdir -p /etc/nginx/certs /etc/nginx/vhost.d /etc/nginx/conf.d /usr/share/nginx/html /etc/letsencrypt \
-    && echo "daemon off;" >> /etc/nginx/nginx.conf \
-    && sed -i 's/^http {/&\n    server_names_hash_bucket_size 128;/g' /etc/nginx/nginx.conf \
     && chmod u+x /app/remove 
+
+
+VOLUME ["/etc/nginx/certs", "/etc/nginx/dhparam"]
 
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh" ]
 CMD ["forego", "start", "-r"]
